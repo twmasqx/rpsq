@@ -3,7 +3,7 @@ on: [push, workflow_dispatch]
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -16,28 +16,38 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17' # هذا السطر هو مفتاح الحل
+          java-version: '17'
 
-      - name: Install Tools
+      - name: Install Android SDK & Build Tools
         run: |
           sudo apt update
-          sudo apt install -y git zip unzip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev
+          sudo apt install -y git zip unzip openjdk-17-jdk autoconf libtool pkg-config \
+          zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev \
+          libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev
+          # تثبيت الأدوات التي يحتاجها aidl
+          sudo apt install -y build-essential
+
+      - name: Install Buildozer & Cython
+        run: |
           pip install --upgrade pip
           pip install "Cython<3.0" buildozer
 
       - name: Build APK
+        env:
+          BUILDOZER_WARN_ON_ROOT: '0'
+          # إجبار النظام على قبول التراخيص آلياً
+          APP_ANDROID_ACCEPT_SDK_LICENSE: '1'
         run: |
-          # حذف أي إعدادات قديمة لبدء بناء نظيف تماماً
           rm -rf .buildozer
           rm -f buildozer.spec
           buildozer init
-          # إعدادات الرادار البسيطة
+          # إعدادات بسيطة جداً لضمان النجاح
           sed -i 's/^requirements =.*/requirements = python3,kivy==2.3.0,kivymd==1.2.0/' buildozer.spec
           sed -i 's/^android.archs =.*/android.archs = arm64-v8a/' buildozer.spec
           sed -i 's/^android.api =.*/android.api = 33/' buildozer.spec
-          # أمر البناء المباشر
-          buildozer -v android debug
-          
+          # الأمر الذي سيقوم بتحميل الـ SDK والـ build-tools تلقائياً
+          yes | buildozer -v android debug
+
       - name: Upload
         if: always()
         uses: actions/upload-artifact@v4
