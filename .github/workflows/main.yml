@@ -1,4 +1,4 @@
-name: Build Nexus Radar
+name: Build Nexus
 on: [push, workflow_dispatch]
 
 jobs:
@@ -10,22 +10,21 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: "3.10"
 
-      - name: Set up JDK 17
+      - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Install Android Dependencies
+      - name: Install System Dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y git zip unzip openjdk-17-jdk autoconf libtool pkg-config \
-          zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev \
-          build-essential libsqlite3-dev sqlite3 bzip2 libbz2-dev
+          sudo apt update
+          sudo apt install -y git zip unzip openjdk-17-jdk autoconf libtool pkg-config zlib1g-dev \
+          libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev
 
-      - name: Install Buildozer & Cython
+      - name: Install Buildozer
         run: |
           pip install --upgrade pip
           pip install "Cython<3.0" buildozer
@@ -33,28 +32,26 @@ jobs:
       - name: Build APK
         env:
           BUILDOZER_WARN_ON_ROOT: '0'
-          APP_ANDROID_ACCEPT_SDK_LICENSE: '1'
         run: |
-          # تنظيف كامل
+          # تنظيف كامل للمستودع
           rm -rf .buildozer
           rm -f buildozer.spec
           
-          # بناء ملف إعدادات جديد ومضمون
+          # إنشاء إعدادات نظيفة جداً للرادار
           buildozer init
           
-          # تعديلات "الأمان" لضمان خروج الـ APK
+          # تعديلات "الحل السريع"
           sed -i 's/^requirements =.*/requirements = python3,kivy==2.3.0,kivymd==1.2.0/' buildozer.spec
           sed -i 's/^android.archs =.*/android.archs = arm64-v8a/' buildozer.spec
           sed -i 's/^android.api =.*/android.api = 31/' buildozer.spec
-          sed -i 's/^android.minapi =.*/android.minapi = 21/' buildozer.spec
-          sed -i 's/^android.sdk_build_tools_version =.*/android.sdk_build_tools_version = 33.0.0/' buildozer.spec
+          sed -i 's/^#android.accept_sdk_license =.*/android.accept_sdk_license = True/' buildozer.spec
           
-          # تشغيل البناء مع قبول التراخيص
+          # البدء بالبناء مع قبول التراخيص آلياً
           yes | buildozer -v android debug
 
-      - name: Upload APK
+      - name: Upload
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Nexus-Radar-Final
+          name: Nexus-Radar-Initial
           path: bin/*.apk
