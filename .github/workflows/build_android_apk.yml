@@ -1,65 +1,54 @@
 name: Build Android APK
-
-on:
-  push:
-    branches:
-      - main
-      - master
-  workflow_dispatch:
+on: [push, workflow_dispatch]
 
 jobs:
-  build-android:
+  build:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Install system dependencies
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install Android SDK & Tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            build-essential \
-            git \
-            zip \
-            unzip \
-            openjdk-17-jdk \
-            libffi-dev \
-            libssl-dev \
-            liblzma-dev \
-            libbz2-dev \
-            libreadline-dev \
-            zlib1g-dev
+          # تثبيت الأدوات الضرورية لـ Aidl و Build-tools
+          sudo apt-get install -y git zip unzip openjdk-17-jdk autoconf libtool pkg-config \
+          zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev \
+          libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev
 
-      - name: Install Buildozer and Python tools
+      - name: Install Buildozer & Cython
         run: |
           python -m pip install --upgrade pip
-          pip install buildozer cython
+          pip install "Cython<3.0" buildozer 
 
-      - name: Initialize Buildozer spec (if missing)
+      - name: Build APK
+        env:
+          BUILDOZER_WARN_ON_ROOT: '0'
+          APP_ANDROID_ACCEPT_SDK_LICENSE: '1'
         run: |
+          # تأكد من وجود ملف السبيك للرادار فقط
           if [ ! -f buildozer.spec ]; then
             buildozer init
-            sed -i 's/^title =.*/title = Nexus Vision/' buildozer.spec
-            sed -i 's/^package.name =.*/package.name = nexusvision/' buildozer.spec
-            sed -i 's/^package.domain =.*/package.domain = org.nexus.vision/' buildozer.spec
-            sed -i 's/^requirements =.*/requirements = python3,kivy,kivymd/' buildozer.spec
+            sed -i 's/^requirements =.*/requirements = python3,kivy==2.3.0,kivymd==1.2.0/' buildozer.spec
           fi
+          # مسح أي مخلفات قديمة لبدء بناء نظيف
+          rm -rf .buildozer
+          # قبول التراخيص وبناء نسخة الرادار
+          yes | buildozer -v android debug 2>&1 | tee build.log
 
-      - name: Build Android debug APK
-        env:
-          BUILDOZER_WARN_ON_ROOT: "1"
-        run: |
-          buildozer -v android debug
-
-      - name: Upload APK artifact
+      - name: Upload APK
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: nexus-vision-debug-apk
+          name: Nexus-Radar-Initial
           path: bin/*.apk
-
