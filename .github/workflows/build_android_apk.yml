@@ -1,9 +1,9 @@
-name: Build Nexus
+name: Build Nexus Radar
 on: [push, workflow_dispatch]
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04 # نسخة ثابتة ومستقرة
     steps:
       - uses: actions/checkout@v4
 
@@ -18,14 +18,13 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Install Android SDK & Build Tools
+      - name: Install Essential Tools
+        # أضفنا --fix-missing لتجاوز خطأ 100
         run: |
-          sudo apt update
-          sudo apt install -y git zip unzip openjdk-17-jdk autoconf libtool pkg-config \
-          zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev \
-          libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev
-          # تثبيت الأدوات التي يحتاجها aidl
-          sudo apt install -y build-essential
+          sudo apt-get update --fix-missing
+          sudo apt-get install -y git zip unzip autoconf libtool pkg-config zlib1g-dev \
+          libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev \
+          build-essential libsqlite3-dev sqlite3 bzip2 libbz2-dev
 
       - name: Install Buildozer & Cython
         run: |
@@ -35,22 +34,27 @@ jobs:
       - name: Build APK
         env:
           BUILDOZER_WARN_ON_ROOT: '0'
-          # إجبار النظام على قبول التراخيص آلياً
-          APP_ANDROID_ACCEPT_SDK_LICENSE: '1'
         run: |
+          # تنظيف كامل لأي محاولة فاشلة سابقة
           rm -rf .buildozer
           rm -f buildozer.spec
+          
+          # إنشاء ملف إعدادات جديد ونظيف جداً
           buildozer init
-          # إعدادات بسيطة جداً لضمان النجاح
+          
+          # تعديلات ذكية لضمان النجاح
           sed -i 's/^requirements =.*/requirements = python3,kivy==2.3.0,kivymd==1.2.0/' buildozer.spec
           sed -i 's/^android.archs =.*/android.archs = arm64-v8a/' buildozer.spec
           sed -i 's/^android.api =.*/android.api = 33/' buildozer.spec
-          # الأمر الذي سيقوم بتحميل الـ SDK والـ build-tools تلقائياً
+          sed -i 's/^android.minapi =.*/android.minapi = 21/' buildozer.spec
+          sed -i 's/^android.accept_sdk_license =.*/android.accept_sdk_license = True/' buildozer.spec
+          
+          # البدء بالبناء
           yes | buildozer -v android debug
-
-      - name: Upload
+          
+      - name: Upload APK
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Nexus-Radar-Final
+          name: Nexus-Radar-Package
           path: bin/*.apk
