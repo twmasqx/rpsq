@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Nexus
 on: [push, workflow_dispatch]
 
 jobs:
@@ -10,7 +10,45 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.10"
+
+      - name: Install Tools
+        run: |
+          sudo apt update
+          sudo apt install -y git zip unzip openjdk-17-jdk autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev
+          pip install --upgrade pip
+          pip install "Cython<3.0" buildozer
+
+      - name: Build
+        run: |
+          # حذف أي إعدادات قديمة تماماً
+          rm -f buildozer.spec
+          buildozer init
+          # تعديل الإعدادات لتبدأ بأبسط صورة
+          sed -i 's/^requirements =.*/requirements = python3,kivy==2.3.0,kivymd==1.2.0/' buildozer.spec
+          sed -i 's/^android.archs =.*/android.archs = arm64-v8a/' buildozer.spec
+          # أمر البناء
+          yes | buildozer -v android debug
+          
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nexus-Radar
+          path: bin/*.apk
+
+name: Build Android APK
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11' # رفعنا النسخة لضمان التوافق مع NDK الحديث
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -21,10 +59,9 @@ jobs:
       - name: Install System Dependencies
         run: |
           sudo apt-get update
-          # أضفنا build-essential و libncurses لضمان عمل Aidl
           sudo apt-get install -y git zip unzip openjdk-17-jdk autoconf libtool pkg-config \
           zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev \
-          libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev build-essential
+          libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev
 
       - name: Install Buildozer & Cython
         run: |
@@ -36,18 +73,10 @@ jobs:
           BUILDOZER_WARN_ON_ROOT: '0'
           APP_ANDROID_ACCEPT_SDK_LICENSE: '1'
         run: |
-          # تنظيف وبدء بناء نظيف
+          export PATH="$HOME/.local/bin:$PATH"
+          # أمر سحري: مسح أي إعدادات قديمة وبدء بناء نظيف تماماً
           rm -rf .buildozer
-          
-          # إذا لم يكن هناك ملف spec، سننشئ واحدًا بسيطًا للرادار
-          if [ ! -f buildozer.spec ]; then
-            buildozer init
-            sed -i 's/^requirements =.*/requirements = python3,kivy==2.3.0,kivymd==1.2.0/' buildozer.spec
-            sed -i 's/^android.archs =.*/android.archs = arm64-v8a/' buildozer.spec
-            sed -i 's/^android.api =.*/android.api = 31/' buildozer.spec
-          fi
-          
-          # تشغيل البناء مع تسجيل السجلات
+          # سنبني لمعمارية واحدة أولاً لضمان النجاح السريع
           yes | buildozer -v android debug 2>&1 | tee build.log
 
       - name: Upload APK
