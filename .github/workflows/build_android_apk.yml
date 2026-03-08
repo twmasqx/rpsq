@@ -1,52 +1,65 @@
 name: Build Android APK
-on: [push]
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
 
 jobs:
-  build:
-    runs-on: ubuntu-22.04
+  build-android:
+    runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11' # رفعنا النسخة لضمان التوافق مع NDK الحديث
+          python-version: "3.11"
 
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Install System Dependencies
+      - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y git zip unzip openjdk-17-jdk autoconf libtool pkg-config \
-          zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev \
-          libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev
+          sudo apt-get install -y \
+            build-essential \
+            git \
+            zip \
+            unzip \
+            openjdk-17-jdk \
+            libffi-dev \
+            libssl-dev \
+            liblzma-dev \
+            libbz2-dev \
+            libreadline-dev \
+            zlib1g-dev
 
-      - name: Install Buildozer & Cython
+      - name: Install Buildozer and Python tools
         run: |
           python -m pip install --upgrade pip
-          pip install "Cython<3.0" buildozer 
+          pip install buildozer cython
 
-      - name: Build APK
-        env:
-          BUILDOZER_WARN_ON_ROOT: '0'
-          APP_ANDROID_ACCEPT_SDK_LICENSE: '1'
+      - name: Initialize Buildozer spec (if missing)
         run: |
-          export PATH="$HOME/.local/bin:$PATH"
-          # أمر سحري: مسح أي إعدادات قديمة وبدء بناء نظيف تماماً
-          rm -rf .buildozer
-          # سنبني لمعمارية واحدة أولاً لضمان النجاح السريع
-          yes | buildozer -v android debug 2>&1 | tee build.log
+          if [ ! -f buildozer.spec ]; then
+            buildozer init
+            sed -i 's/^title =.*/title = Nexus Vision/' buildozer.spec
+            sed -i 's/^package.name =.*/package.name = nexusvision/' buildozer.spec
+            sed -i 's/^package.domain =.*/package.domain = org.nexus.vision/' buildozer.spec
+            sed -i 's/^requirements =.*/requirements = python3,kivy,kivymd/' buildozer.spec
+          fi
 
-      - name: Upload APK
-        if: always()
+      - name: Build Android debug APK
+        env:
+          BUILDOZER_WARN_ON_ROOT: "1"
+        run: |
+          buildozer -v android debug
+
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: NexusVision-Final-APK
-          path: |
-            bin/*.apk
-            build.log
-          
+          name: nexus-vision-debug-apk
+          path: bin/*.apk
+
